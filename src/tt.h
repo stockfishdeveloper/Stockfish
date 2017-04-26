@@ -41,7 +41,8 @@ struct TTEntry {
   Value eval()  const { return (Value)eval16; }
   Depth depth() const { return (Depth)(depth8 * int(ONE_PLY)); }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
-
+  bool get_null_worked() const { return nullWorked; }
+  void set_null_worked(bool worked) {	nullWorked = worked; }
   void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g) {
 
     assert(d / ONE_PLY * ONE_PLY == d);
@@ -62,7 +63,7 @@ struct TTEntry {
         genBound8 = (uint8_t)(g | b);
         depth8    = (int8_t)(d / ONE_PLY);
     }
-  }
+}
 
 private:
   friend class TranspositionTable;
@@ -73,6 +74,7 @@ private:
   int16_t  eval16;
   uint8_t  genBound8;
   int8_t   depth8;
+  bool nullWorked;
 };
 
 
@@ -85,7 +87,7 @@ private:
 
 class TranspositionTable {
 
-  static const int CacheLineSize = 64;
+  static const int CacheLineSize = 76;
   static const int ClusterSize = 3;
 
   struct Cluster {
@@ -103,10 +105,9 @@ public:
   int hashfull() const;
   void resize(size_t mbSize);
   void clear();
-
   // The lowest order bits of the key are used to get the index of the cluster
   TTEntry* first_entry(const Key key) const {
-    return &table[(size_t)key & (clusterCount - 1)].entry[0];
+  	return &table[(size_t)key & (clusterCount - 1)].entry[0];
   }
 
 private:
