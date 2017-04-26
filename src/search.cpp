@@ -738,13 +738,13 @@ namespace {
     // Step 8. Null move search with verification search (is omitted in PV nodes)
     if (   !PvNode
         &&  eval >= beta
+        && (ttHit ? (tte->get_null_worked() == false) : 1)
         && (ss->staticEval >= beta - 35 * (depth / ONE_PLY - 6) || depth >= 13 * ONE_PLY)
         &&  pos.non_pawn_material(pos.side_to_move()))
     {
 
         assert(eval - beta >= 0);
-
-        // Null move dynamic reduction based on depth and value
+		// Null move dynamic reduction based on depth and value
         Depth R = ((823 + 67 * depth / ONE_PLY) / 256 + std::min((eval - beta) / PawnValueMg, 3)) * ONE_PLY;
 
         ss->currentMove = MOVE_NULL;
@@ -771,6 +771,10 @@ namespace {
             if (v >= beta)
                 return nullValue;
         }
+        else if(ttHit)
+		{
+			tte->set_null_worked(false);
+		}
     }
 
     // Step 9. ProbCut (skipped when in check)
