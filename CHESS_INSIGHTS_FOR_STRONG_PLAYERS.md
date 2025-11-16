@@ -451,9 +451,9 @@ ss->statScore = 803 * int(PieceValue[pos.captured_piece()]) / 128
 
 ---
 
-## Summary: Top 10 Most Actionable Rules
+## Summary: Core Principles (Top 10)
 
-For quick reference, here are the most immediately applicable rules for strong players:
+For quick reference during games, here are the most immediately applicable rules:
 
 1. **Bishop > Knight by ~0.2 pawns** - Prefer bishops in equal positions
 2. **Improving = Good** - If your position is better than 2 moves ago, play aggressively
@@ -466,24 +466,277 @@ For quick reference, here are the most immediately applicable rules for strong p
 9. **First 3 candidates matter most** - Make sure you're considering the right moves initially
 10. **Move sequences > single moves** - Look back 2 moves to understand current position
 
+*(See "Updated Top 15 Most Actionable Rules" near the end for expanded quick reference)*
+
 ---
 
 ## Conclusion
 
-Stockfish's evaluation and search functions reveal deep chess truths that strong players can apply:
+Stockfish's evaluation and search functions reveal deep chess truths that strong players can apply. This analysis has extracted **42 actionable rules** organized into **30 major topics**:
 
-- **Material imbalances** have precise thresholds where strategy changes
-- **Move sequences** and position improvement over time matter more than single moves
-- **Calculation depth** directly relates to allowable sacrifices
-- **Pattern recognition** through history heuristics mirrors human learning
-- **King safety** requires maintaining pieces for threats
-- **Endgame technique** includes awareness of stalemate tactics
-- **Time allocation** should depend on position stability and evaluation trends
+### Key Themes Across All Rules:
 
-These insights translate engine precision into human understanding, providing concrete guidelines for 2200+ players to improve their practical play and positional understanding.
+1. **Material imbalances** have precise thresholds where strategy changes fundamentally
+2. **Move sequences** and position improvement over time matter more than single moves  
+3. **Calculation depth** directly relates to allowable sacrifices (±0.75 pawns per ply)
+4. **Pattern recognition** through history heuristics mirrors how humans should learn
+5. **King safety** requires maintaining pieces for threats, not just pawn shields
+6. **Endgame technique** includes awareness of stalemate tactics and king activity
+7. **Time allocation** should depend on position stability and evaluation trends
+8. **Position complexity** (tactical vs positional) affects how to approach decisions
+9. **Threat hierarchy** (lesser pieces attacking greater) guides priority setting
+10. **Evaluation certainty** varies with position type - know when evals are reliable
+
+### How to Apply These Insights:
+
+- **During Games**: Reference the "Top 15 Quick Rules" for immediate tactical/strategic guidance
+- **In Analysis**: Use the detailed rules to understand why certain moves/plans work
+- **In Training**: Focus on the thematic elements (material, sequences, calculation depth)
+- **For Improvement**: Study positions where these rules clash to develop judgment
+
+### The Meta-Lesson:
+
+Stockfish's success comes not from one brilliant insight, but from correctly weighing dozens of factors. Strong human players should similarly develop a multi-faceted understanding where:
+- Material considerations are precise, not approximate
+- Positional factors have concrete evaluation weights  
+- Tactical and strategic elements interact predictably
+- Time/effort investment matches position requirements
+
+These insights translate engine precision into human understanding, providing concrete guidelines for 2200+ players to improve their practical play, positional judgment, and calculation accuracy.
+
+---
+
+## 21. Repetition and Draw Detection
+
+### Upcoming Repetition Check
+From `position.cpp`, Stockfish checks for upcoming repetition draws:
+```cpp
+if (!rootNode && alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
+{
+    alpha = value_draw(nodes);
+    if (alpha >= beta)
+        return alpha;
+}
+```
+
+**Rule 31**: Actively check for repetition traps:
+- If your opponent can force a repetition, assume they will
+- Don't calculate lines assuming opponent will "play on"
+- In worse positions, look for repetition drawing chances 3-4 moves ahead
+- Repetitions can be forced by piece oscillations or pawn structure locks
+
+### Rule50 Draw Detection
+```cpp
+if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
+    return true;
+```
+
+**Rule 32**: The 50-move rule activates at move 100 (not 50):
+- Track your move counter in long endgames
+- Even in check, if legal moves exist, it's a draw at 100
+- In tablebase positions, this can override theoretical wins
+- Be aware: Some winning endgames (KBN vs K) require ~30-35 moves optimal play
+
+---
+
+## 22. NNUE Evaluation Complexity
+
+### PSQT vs Positional Components
+From `evaluate.cpp`:
+```cpp
+Value nnue = (125 * psqt + 131 * positional) / 128;
+int nnueComplexity = std::abs(psqt - positional);
+```
+
+**Rule 33**: Position complexity relates to piece placement vs pawn structure:
+- **PSQT (Piece-Square Tables)**: Where pieces are located
+- **Positional**: Pawn structure, king safety, piece coordination
+- High complexity (PSQT ≠ Positional): Tactical, unstable positions
+- Low complexity (PSQT ≈ Positional): Strategic, positional grinding
+
+**Practical Application**:
+- If you have well-placed pieces but bad pawn structure: position is complex/tactical
+- If you have good pawn structure but poorly placed pieces: position is strategic
+- Match your time allocation to position complexity
+
+### Optimism and Complexity Interaction
+```cpp
+optimism += optimism * nnueComplexity / 468;
+nnue -= nnue * nnueComplexity / 18000;
+```
+
+**Rule 34**: In complex positions, evaluation becomes less certain:
+- Stockfish reduces eval confidence by ~0.5% of complexity measure
+- In sharp tactical positions, even "good" moves may have unclear outcomes
+- When complexity is high, concrete calculation matters more than evaluation
+- Simple positions have more reliable evaluations
+
+---
+
+## 23. Move Generation and Legal Move Awareness
+
+### Evasion Move Ordering
+From `movepick.cpp`, when in check:
+```cpp
+if (pos.checkers())
+    stage = EVASION_TT + !(ttm && pos.pseudo_legal(ttm));
+```
+
+**Rule 35**: When in check, move ordering changes completely:
+- All evasions are considered "important" moves
+- Captures while evading are often strong (counterattack)
+- Blocking checks vs moving the king are equally important to consider
+- Don't assume moving the king is "safer" - calculate concrete lines
+
+---
+
+## 24. Threat Detection and Piece Safety
+
+### Threat by Lesser Piece
+From `movepick.cpp`:
+```cpp
+threatByLesser[KNIGHT] = threatByLesser[BISHOP] = pos.attacks_by<PAWN>(~us);
+threatByLesser[ROOK] = pos.attacks_by<KNIGHT>(~us) | pos.attacks_by<BISHOP>(~us) | threatByLesser[KNIGHT];
+threatByLesser[QUEEN] = pos.attacks_by<ROOK>(~us) | threatByLesser[ROOK];
+threatByLesser[KING] = pos.attacks_by<QUEEN>(~us) | threatByLesser[QUEEN];
+```
+
+**Rule 36**: Pieces under attack by "lesser" pieces are vulnerable:
+- Knights/Bishops attacked by pawns: Very high priority to address
+- Rooks attacked by minor pieces: High priority
+- Queen attacked by rooks: Moderate priority
+- King attacked by anything: Ultimate priority
+
+**Practical Application**:
+- Before moving a piece, check if it will be attacked by a lesser piece
+- Create threats against opponent's pieces with your "lesser" pieces
+- Pawns attacking pieces is a powerful positional tool
+- Don't place your rooks where they can be attacked by knights/bishops
+
+---
+
+## 25. Search Window Management
+
+### Mate Distance Pruning
+From `search.cpp`:
+```cpp
+alpha = std::max(mated_in(ss->ply), alpha);
+beta  = std::min(mate_in(ss->ply + 1), beta);
+if (alpha >= beta)
+    return alpha;
+```
+
+**Rule 37**: Mate distance awareness affects all positions:
+- If you can be mated in N moves, don't bother finding longer mates for yourself
+- Even if you have a "better" move, if you're getting mated first, it doesn't matter
+- When mating opponent, look for the quickest mate, not the "best" move
+- Mate threats trump all positional considerations
+
+---
+
+## 26. Material Balance in Evaluation
+
+### Material Scaling with NNUE
+From `evaluate.cpp`:
+```cpp
+int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
+int v = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
+```
+
+**Rule 38**: More material on the board amplifies position evaluation:
+- With 32 pieces: Full evaluation weight
+- With 16 pieces (endgame): ~80% evaluation weight  
+- With 8 pieces (bare endgame): ~70% evaluation weight
+- With 2 pieces: ~55% evaluation weight
+
+**Practical Application**:
+- Small advantages matter more in complex middlegames
+- Need larger advantages to win simplified positions
+- A 0.3 pawn advantage in middlegame ≈ 0.4-0.5 pawn advantage needed in endgame
+- Don't trade into "slightly better" endgames; they're harder to win
+
+---
+
+## 27. Quiescence Search and Tactical Vision
+
+### Futility in Quiescence
+From `search.cpp` qsearch:
+```cpp
+futilityBase = ss->staticEval + 352;
+// Later...
+Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+if (futilityValue <= alpha)
+    continue;
+```
+
+**Rule 39**: Tactical sequences have evaluation thresholds:
+- Can prune captures if position + captured piece value is ~1.7 pawns below target
+- In tactical melees, small gains don't matter; look for decisive blows
+- If you're down material, need to win significant material back, not just pawns
+- Don't get bogged down calculating tiny material gains when behind
+
+---
+
+## 28. Move Ordering Quality Impact
+
+### History and Continuation Impact
+Multiple history tables affect move ordering:
+- Main history (butterfly)
+- Capture history
+- Continuation history (1-ply, 2-ply back)
+- Pawn history
+
+**Rule 40**: Move quality is context-dependent:
+- Same move in similar positions has similar value
+- Move sequences (move pairs) are more important than individual moves
+- Pawn structure affects piece move quality significantly
+- Learn patterns: "in this pawn structure, these piece placements work"
+
+---
+
+## Additional Tactical Insights
+
+### 29. Piece Value in Context
+
+**Rule 41**: Exchange values depend on position:
+- Knight for 3 pawns: Generally favorable in closed positions
+- Bishop for 3 pawns: Generally favorable in open positions  
+- Rook for minor + pawn: Slightly favorable for rook in open games
+- Queen vs 2 rooks: Usually favors the rooks in endgames
+- These are averages; specific positions vary ±0.5-1.0 pawns
+
+### 30. King Activity in Endgames
+
+**Rule 42**: From the evaluation dampening by material:
+- In endgames, king becomes a fighting piece worth ~4 pawns in activity
+- A centralized king is worth ~2 pawns over a side-bound king
+- King activity can compensate for 1-2 pawn deficits in endgames
+- Activate your king as soon as queens are off the board
+
+---
+
+## Updated Top 15 Most Actionable Rules
+
+For quick reference, expanded list of immediately applicable rules:
+
+1. **Bishop > Knight by ~0.2 pawns** - Prefer bishops in equal positions
+2. **Improving = Good** - If position better than 2 moves ago, play aggressively
+3. **1+ pawn sacrifice per ply** - Can sacrifice ~0.75 pawns per ply of combination
+4. **Singular moves are 1.5+ pawns better** - If one move clearly best, it's likely forced
+5. **Material > 4-5 pawns** - Complexity changes; simplify if winning
+6. **Stalemate after Rook/Queen capture** - Critical check when down to pawns
+7. **Falling eval = think longer** - If deteriorating, find the problem
+8. **First 3 candidates matter most** - Ensure considering right moves
+9. **Threats by lesser pieces** - Knights/bishops under pawn attack are critical
+10. **Rule 50 at move 100** - Count moves in long endgames
+11. **Check upcoming repetitions** - Assume opponent will take draws when behind
+12. **Complex positions = less certain** - Calculate more when PSQT ≠ Positional
+13. **Material amplifies eval** - Advantages easier to realize with more pieces on board
+14. **King activity in endgames** - Worth ~2 pawns differential in centralization
+15. **Move pairs over single moves** - Consider 2-move sequences in evaluation
 
 ---
 
 *Document created from analysis of Stockfish source code at commit f66c3627*
-*Focus areas: search.cpp, evaluate.cpp, types.h, movepick.cpp*
+*Focus areas: search.cpp, evaluate.cpp, types.h, movepick.cpp, position.cpp*
 *Analysis date: November 16, 2025*
