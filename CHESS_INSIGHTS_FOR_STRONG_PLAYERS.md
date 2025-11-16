@@ -5,6 +5,25 @@
 
 This document extracts human-applicable chess principles from Stockfish's evaluation and search functions. While engines calculate precisely, these insights translate their logic into practical guidelines for strong human players.
 
+### 📊 Document Overview
+
+- **42 Actionable Rules** organized into **30 Major Topics**
+- **742 lines** of detailed analysis with code examples
+- **Top 10 Core Principles** for quick reference during games
+- **Top 15 Expanded Rules** for deeper study
+
+### 📚 Main Topics Covered
+
+1-20: Material evaluation, search depth, move ordering, king safety, captures, tactics, patterns, endgames, time management, position complexity
+
+21-30: Draw detection, NNUE evaluation, move generation, threats, mate distance, material scaling, quiescence search, move ordering quality, piece values in context, king activity
+
+### 🎯 Quick Start
+
+- **For Game Use**: Jump to "Summary: Core Principles (Top 10)" or "Updated Top 15 Most Actionable Rules"
+- **For Study**: Read through all 30 topics sequentially
+- **For Specific Topics**: Use section headers to navigate to areas of interest
+
 ---
 
 ## 1. Material Evaluation Insights
